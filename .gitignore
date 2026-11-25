@@ -1,0 +1,18 @@
+# Dependencies
+**/node_modules/
+
+# Build and test output
+**/dist/
+**/coverage/
+
+# Local environment and secrets
+.env*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# Local operating-system files
+.DS_Store
+Thumbs.db

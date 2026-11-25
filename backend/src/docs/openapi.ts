@@ -1,0 +1,374 @@
+export const openApiDocument = {
+  openapi: "3.0.3",
+  info: {
+    title: "Social Media Platform API",
+    version: "1.0.0",
+    description:
+      "REST API for the Socially application. Authentication is managed with an HttpOnly cookie named `social_access_token`; Swagger UI keeps this cookie in the browser after login or registration.",
+  },
+  servers: [
+    {
+      url: "/",
+      description: "Current host",
+    },
+  ],
+  tags: [
+    { name: "System", description: "Service status and health" },
+    { name: "Authentication", description: "Account and session endpoints" },
+  ],
+  paths: {
+    "/": {
+      get: {
+        tags: ["System"],
+        summary: "Get API welcome message",
+        responses: {
+          "200": {
+            description: "API welcome message",
+            content: {
+              "text/html": {
+                schema: { type: "string" },
+                example: "Welcome to Social Media Platform API",
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/health": {
+      get: {
+        tags: ["System"],
+        summary: "Check API health",
+        responses: {
+          "200": {
+            description: "API is running",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/HealthResponse" },
+                example: {
+                  success: true,
+                  message: "Social Media Platform API is running!",
+                  timestamp: "2026-11-25T06:30:00.000Z",
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/auth/register": {
+      post: {
+        tags: ["Authentication"],
+        summary: "Register an account",
+        description:
+          "Creates an account and starts a browser session by setting the HttpOnly authentication cookie.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/RegisterRequest" },
+              example: {
+                fullName: "Taylor Sample",
+                username: "taylor.sample",
+                email: "taylor@example.com",
+                password: "StrongPassword1!",
+                confirmPassword: "StrongPassword1!",
+              },
+            },
+          },
+        },
+        responses: {
+          "201": {
+            description: "Account created and session cookie set",
+            headers: {
+              "Set-Cookie": {
+                description:
+                  "HttpOnly session cookie. Browsers and Swagger UI send it automatically on subsequent requests.",
+                schema: { type: "string" },
+              },
+            },
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/AuthResponse" },
+              },
+            },
+          },
+          "400": { $ref: "#/components/responses/ValidationError" },
+          "409": { $ref: "#/components/responses/ConflictError" },
+          "413": { $ref: "#/components/responses/PayloadTooLarge" },
+          "429": { $ref: "#/components/responses/RateLimitError" },
+          "500": { $ref: "#/components/responses/ServerError" },
+        },
+      },
+    },
+    "/api/auth/login": {
+      post: {
+        tags: ["Authentication"],
+        summary: "Log in",
+        description:
+          "Verifies credentials and sets the HttpOnly authentication cookie. Setting `rememberMe` to true extends the session to 30 days; otherwise it is a browser-session cookie.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/LoginRequest" },
+              example: {
+                email: "taylor@example.com",
+                password: "StrongPassword1!",
+                rememberMe: false,
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Login successful and session cookie set",
+            headers: {
+              "Set-Cookie": {
+                description:
+                  "HttpOnly session cookie. Browsers and Swagger UI send it automatically on subsequent requests.",
+                schema: { type: "string" },
+              },
+            },
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/AuthResponse" },
+              },
+            },
+          },
+          "400": { $ref: "#/components/responses/ValidationError" },
+          "401": { $ref: "#/components/responses/UnauthorizedError" },
+          "413": { $ref: "#/components/responses/PayloadTooLarge" },
+          "429": { $ref: "#/components/responses/RateLimitError" },
+          "500": { $ref: "#/components/responses/ServerError" },
+        },
+      },
+    },
+    "/api/auth/logout": {
+      post: {
+        tags: ["Authentication"],
+        summary: "Log out",
+        description:
+          "Clears the browser's authentication cookie. Authentication is not required.",
+        responses: {
+          "200": {
+            description: "Session cookie cleared",
+            headers: {
+              "Set-Cookie": {
+                description: "Expires the `social_access_token` cookie.",
+                schema: { type: "string" },
+              },
+            },
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/LogoutResponse" },
+                example: {
+                  success: true,
+                  message: "Logged out successfully",
+                  data: null,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/api/auth/me": {
+      get: {
+        tags: ["Authentication"],
+        summary: "Get the current authenticated user",
+        security: [{ cookieAuth: [] }],
+        responses: {
+          "200": {
+            description: "Authenticated user's public profile",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/CurrentUserResponse" },
+              },
+            },
+          },
+          "401": { $ref: "#/components/responses/UnauthorizedError" },
+          "500": { $ref: "#/components/responses/ServerError" },
+        },
+      },
+    },
+  },
+  components: {
+    securitySchemes: {
+      cookieAuth: {
+        type: "apiKey",
+        in: "cookie",
+        name: "social_access_token",
+        description:
+          "Set by the register or login endpoints. The cookie is HttpOnly and cannot be entered manually in browser JavaScript.",
+      },
+    },
+    schemas: {
+      PublicUser: {
+        type: "object",
+        required: ["id", "fullName", "username", "email"],
+        properties: {
+          id: { type: "string", example: "65f1a2b3c4d5e6f789012345" },
+          fullName: { type: "string", example: "Taylor Sample" },
+          username: { type: "string", example: "taylor.sample" },
+          email: { type: "string", format: "email", example: "taylor@example.com" },
+        },
+      },
+      RegisterRequest: {
+        type: "object",
+        required: ["fullName", "username", "email", "password", "confirmPassword"],
+        properties: {
+          fullName: { type: "string", minLength: 2, maxLength: 80 },
+          username: {
+            type: "string",
+            minLength: 3,
+            maxLength: 30,
+            pattern: "^[a-z0-9](?:[a-z0-9._]{1,28}[a-z0-9])$",
+            description: "Letters, numbers, dots, and underscores; normalized to lowercase.",
+          },
+          email: { type: "string", format: "email", maxLength: 254 },
+          password: {
+            type: "string",
+            minLength: 8,
+            description: "Maximum 72 UTF-8 bytes.",
+            format: "password",
+          },
+          confirmPassword: { type: "string", format: "password" },
+        },
+      },
+      LoginRequest: {
+        type: "object",
+        required: ["email", "password"],
+        properties: {
+          email: { type: "string", format: "email", maxLength: 254 },
+          password: { type: "string", minLength: 1, format: "password" },
+          rememberMe: {
+            type: "boolean",
+            default: false,
+            description: "When true, keeps the session for up to 30 days.",
+          },
+        },
+      },
+      HealthResponse: {
+        type: "object",
+        required: ["success", "message", "timestamp"],
+        properties: {
+          success: { type: "boolean", example: true },
+          message: { type: "string" },
+          timestamp: { type: "string", format: "date-time" },
+        },
+      },
+      AuthResponse: {
+        type: "object",
+        required: ["success", "message", "data"],
+        properties: {
+          success: { type: "boolean", example: true },
+          message: { type: "string", example: "Login successful" },
+          data: {
+            type: "object",
+            required: ["user"],
+            properties: { user: { $ref: "#/components/schemas/PublicUser" } },
+          },
+        },
+      },
+      CurrentUserResponse: {
+        type: "object",
+        required: ["success", "message", "data"],
+        properties: {
+          success: { type: "boolean", example: true },
+          message: { type: "string", example: "Authenticated user" },
+          data: {
+            type: "object",
+            required: ["user"],
+            properties: { user: { $ref: "#/components/schemas/PublicUser" } },
+          },
+        },
+      },
+      LogoutResponse: {
+        type: "object",
+        required: ["success", "message", "data"],
+        properties: {
+          success: { type: "boolean", example: true },
+          message: { type: "string", example: "Logged out successfully" },
+          data: { type: "object", nullable: true, example: null },
+        },
+      },
+      ErrorResponse: {
+        type: "object",
+        required: ["success", "message"],
+        properties: {
+          success: { type: "boolean", example: false },
+          message: { type: "string", example: "Invalid email or password" },
+        },
+      },
+      ValidationErrorResponse: {
+        type: "object",
+        required: ["success", "message", "errors"],
+        properties: {
+          success: { type: "boolean", example: false },
+          message: { type: "string", example: "Validation failed" },
+          errors: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["field", "message"],
+              properties: {
+                field: { type: "string", example: "email" },
+                message: { type: "string", example: "Invalid email" },
+              },
+            },
+          },
+        },
+      },
+    },
+    responses: {
+      ValidationError: {
+        description: "Request body failed validation",
+        content: {
+          "application/json": {
+            schema: { $ref: "#/components/schemas/ValidationErrorResponse" },
+          },
+        },
+      },
+      ConflictError: {
+        description: "Email address or username is already registered",
+        content: {
+          "application/json": {
+            schema: { $ref: "#/components/schemas/ErrorResponse" },
+          },
+        },
+      },
+      UnauthorizedError: {
+        description: "Missing, invalid, or expired authentication",
+        content: {
+          "application/json": {
+            schema: { $ref: "#/components/schemas/ErrorResponse" },
+          },
+        },
+      },
+      PayloadTooLarge: {
+        description: "Request body exceeds the 10 KB limit",
+        content: {
+          "application/json": {
+            schema: { $ref: "#/components/schemas/ErrorResponse" },
+          },
+        },
+      },
+      RateLimitError: {
+        description: "Too many registration or login requests",
+        content: {
+          "application/json": {
+            schema: { $ref: "#/components/schemas/ErrorResponse" },
+          },
+        },
+      },
+      ServerError: {
+        description: "Unexpected server error",
+        content: {
+          "application/json": {
+            schema: { $ref: "#/components/schemas/ErrorResponse" },
+          },
+        },
+      },
+    },
+  },
+} as const;

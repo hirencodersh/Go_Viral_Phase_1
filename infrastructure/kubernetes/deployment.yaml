@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: social-media-platform
+  labels:
+    app: social-media-platform
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: social-media-platform
+  template:
+    metadata:
+      labels:
+        app: social-media-platform
+    spec:
+      containers:
+        - name: frontend
+          image: your-frontend-image:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: REACT_APP_API_URL
+              value: "http://backend-service:5000"
+        - name: backend
+          image: your-backend-image:latest
+          ports:
+            - containerPort: 5000
+          env:
+            - name: DATABASE_URL
+              value: "your-database-url"
+            - name: JWT_SECRET
+              value: "your-jwt-secret"

@@ -1,0 +1,139 @@
+{
+  "info": {
+    "_postman_id": "c0f1b1f1-8d90-4d34-a6f6-99207c29d6bf",
+    "name": "Social Media Platform - Authentication",
+    "description": "Register, login, inspect the current user, and logout. Postman stores the HttpOnly cookie automatically.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000/api"
+    },
+    {
+      "key": "email",
+      "value": "taylor@example.com"
+    },
+    {
+      "key": "username",
+      "value": "taylor.sample"
+    }
+  ],
+  "item": [
+    {
+      "name": "Register",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"fullName\": \"Taylor Sample\",\n  \"username\": \"{{username}}\",\n  \"email\": \"{{email}}\",\n  \"password\": \"ReplaceWithAStrongPassword1!\",\n  \"confirmPassword\": \"ReplaceWithAStrongPassword1!\"\n}"
+        },
+        "url": "{{baseUrl}}/auth/register"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Registration returns 201', () => pm.response.to.have.status(201));",
+              "pm.test('Response has a public user', () => pm.expect(pm.response.json().data.user.email).to.eql(pm.variables.get('email')));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"ReplaceWithAStrongPassword1!\",\n  \"rememberMe\": true\n}"
+        },
+        "url": "{{baseUrl}}/auth/login"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Login returns 200', () => pm.response.to.have.status(200));",
+              "pm.test('Login returns the public user', () => pm.expect(pm.response.json().data.user.email).to.eql(pm.variables.get('email')));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Current user",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/auth/me"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Current user returns 200', () => pm.response.to.have.status(200));",
+              "pm.test('Session belongs to the expected user', () => pm.expect(pm.response.json().data.user.email).to.eql(pm.variables.get('email')));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Logout",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/auth/logout"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Logout returns 200', () => pm.response.to.have.status(200));",
+              "pm.test('Logout clears the session cookie', () => pm.expect(pm.response.headers.get('Set-Cookie')).to.include('Expires='));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Current user after logout",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/auth/me"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Logout removes the browser session', () => pm.response.to.have.status(401));"
+            ]
+          }
+        }
+      ]
+
+    }
+  ]
+}
