@@ -15,6 +15,7 @@ export const openApiDocument = {
   tags: [
     { name: "System", description: "Service status and health" },
     { name: "Authentication", description: "Account and session endpoints" },
+    { name: "Profiles", description: "User profile and account role management" },
   ],
   paths: {
     "/": {
@@ -70,8 +71,10 @@ export const openApiDocument = {
                 fullName: "Taylor Sample",
                 username: "taylor.sample",
                 email: "taylor@example.com",
+                dateOfBirth: "1990-05-12",
                 password: "StrongPassword1!",
                 confirmPassword: "StrongPassword1!",
+                termsAccepted: true,
               },
             },
           },
@@ -93,6 +96,7 @@ export const openApiDocument = {
             },
           },
           "400": { $ref: "#/components/responses/ValidationError" },
+          "403": { $ref: "#/components/responses/AgeRestrictionError" },
           "409": { $ref: "#/components/responses/ConflictError" },
           "413": { $ref: "#/components/responses/PayloadTooLarge" },
           "429": { $ref: "#/components/responses/RateLimitError" },
@@ -137,9 +141,75 @@ export const openApiDocument = {
           },
           "400": { $ref: "#/components/responses/ValidationError" },
           "401": { $ref: "#/components/responses/UnauthorizedError" },
+          "403": { $ref: "#/components/responses/AgeRestrictionError" },
           "413": { $ref: "#/components/responses/PayloadTooLarge" },
           "429": { $ref: "#/components/responses/RateLimitError" },
           "500": { $ref: "#/components/responses/ServerError" },
+        },
+      },
+    },
+    "/api/auth/forgot-password": {
+      post: {
+        tags: ["Authentication"],
+        summary: "Request a password reset email",
+        description:
+          "Sends a short-lived reset link when the email belongs to an account. The same generic response is returned for unknown email addresses.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/ForgotPasswordRequest" },
+              example: { email: "taylor@example.com" },
+            },
+          },
+        },
+        responses: {
+          "202": {
+            description: "Reset request accepted",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/PasswordResetResponse" },
+              },
+            },
+          },
+          "400": { $ref: "#/components/responses/ValidationError" },
+          "429": { $ref: "#/components/responses/RateLimitError" },
+          "503": { $ref: "#/components/responses/ServiceUnavailableError" },
+        },
+      },
+    },
+    "/api/auth/reset-password": {
+      post: {
+        tags: ["Authentication"],
+        summary: "Reset a password with an emailed token",
+        description:
+          "The reset token is single-use and expires after 15 minutes. Passwords must be at least 8 characters and no more than 72 UTF-8 bytes.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/ResetPasswordRequest" },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Password changed successfully",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/PasswordResetResponse" },
+              },
+            },
+          },
+          "400": {
+            description: "Invalid or expired reset token, or validation failure",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" },
+              },
+            },
+          },
+          "429": { $ref: "#/components/responses/RateLimitError" },
         },
       },
     },
@@ -187,7 +257,92 @@ export const openApiDocument = {
             },
           },
           "401": { $ref: "#/components/responses/UnauthorizedError" },
+          "403": { $ref: "#/components/responses/AgeRestrictionError" },
           "500": { $ref: "#/components/responses/ServerError" },
+        },
+      },
+    },
+    "/api/users/profile": {
+      get: {
+        tags: ["Profiles"],
+        summary: "Get logged-in user's profile",
+        security: [{ cookieAuth: [] }],
+        responses: {
+          "200": {
+            description: "Profile fetched successfully",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/ProfileResponse" } } },
+          },
+          "401": { $ref: "#/components/responses/UnauthorizedError" },
+          "403": { $ref: "#/components/responses/AgeRestrictionError" },
+          "500": { $ref: "#/components/responses/ServerError" },
+        },
+      },
+      put: {
+        tags: ["Profiles"],
+        summary: "Update logged-in user's username and bio",
+        security: [{ cookieAuth: [] }],
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: { $ref: "#/components/schemas/ProfileUpdateRequest" } } },
+        },
+        responses: {
+          "200": {
+            description: "Profile updated successfully",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/ProfileResponse" } } },
+          },
+          "400": { $ref: "#/components/responses/ValidationError" },
+          "401": { $ref: "#/components/responses/UnauthorizedError" },
+          "403": { $ref: "#/components/responses/AgeRestrictionError" },
+          "409": { $ref: "#/components/responses/ConflictError" },
+        },
+      },
+    },
+    "/api/users/roles": {
+      patch: {
+        tags: ["Profiles"],
+        summary: "Update logged-in user's account roles",
+        security: [{ cookieAuth: [] }],
+        requestBody: {
+          required: true,
+          content: { "application/json": { schema: { $ref: "#/components/schemas/RoleUpdateRequest" } } },
+        },
+        responses: {
+          "200": {
+            description: "Account type updated successfully",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/ProfileResponse" } } },
+          },
+          "400": { $ref: "#/components/responses/ValidationError" },
+          "401": { $ref: "#/components/responses/UnauthorizedError" },
+          "403": { $ref: "#/components/responses/AgeRestrictionError" },
+        },
+      },
+    },
+    "/api/users/profile/photo": {
+      post: {
+        tags: ["Profiles"],
+        summary: "Upload or replace profile photo",
+        security: [{ cookieAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "multipart/form-data": {
+              schema: {
+                type: "object",
+                required: ["profilePhoto"],
+                properties: { profilePhoto: { type: "string", format: "binary" } },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Profile photo uploaded successfully",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/ProfileResponse" } } },
+          },
+          "400": { $ref: "#/components/responses/ValidationError" },
+          "401": { $ref: "#/components/responses/UnauthorizedError" },
+          "403": { $ref: "#/components/responses/AgeRestrictionError" },
+          "413": { $ref: "#/components/responses/PayloadTooLarge" },
         },
       },
     },
@@ -203,6 +358,42 @@ export const openApiDocument = {
       },
     },
     schemas: {
+      ProfileData: {
+        type: "object",
+        required: ["_id", "username", "email", "profilePhoto", "bio", "roles"],
+        properties: {
+          _id: { type: "string" },
+          username: { type: "string" },
+          email: { type: "string", format: "email" },
+          profilePhoto: { type: "string" },
+          bio: { type: "string", maxLength: 250 },
+          roles: { type: "array", minItems: 1, uniqueItems: true, items: { type: "string", enum: ["fan", "creator"] } },
+        },
+      },
+      ProfileResponse: {
+        type: "object",
+        required: ["success", "message", "data"],
+        properties: {
+          success: { type: "boolean", example: true },
+          message: { type: "string" },
+          data: { $ref: "#/components/schemas/ProfileData" },
+        },
+      },
+      ProfileUpdateRequest: {
+        type: "object",
+        required: ["username", "bio"],
+        properties: {
+          username: { type: "string", minLength: 3, maxLength: 30 },
+          bio: { type: "string", maxLength: 250 },
+        },
+      },
+      RoleUpdateRequest: {
+        type: "object",
+        required: ["roles"],
+        properties: {
+          roles: { type: "array", minItems: 1, uniqueItems: true, items: { type: "string", enum: ["fan", "creator"] } },
+        },
+      },
       PublicUser: {
         type: "object",
         required: ["id", "fullName", "username", "email"],
@@ -215,7 +406,15 @@ export const openApiDocument = {
       },
       RegisterRequest: {
         type: "object",
-        required: ["fullName", "username", "email", "password", "confirmPassword"],
+        required: [
+          "fullName",
+          "username",
+          "email",
+          "dateOfBirth",
+          "password",
+          "confirmPassword",
+          "termsAccepted",
+        ],
         properties: {
           fullName: { type: "string", minLength: 2, maxLength: 80 },
           username: {
@@ -226,6 +425,11 @@ export const openApiDocument = {
             description: "Letters, numbers, dots, and underscores; normalized to lowercase.",
           },
           email: { type: "string", format: "email", maxLength: 254 },
+          dateOfBirth: {
+            type: "string",
+            format: "date",
+            description: "Date of birth in YYYY-MM-DD format; future dates and users under 18 are rejected.",
+          },
           password: {
             type: "string",
             minLength: 8,
@@ -233,6 +437,11 @@ export const openApiDocument = {
             format: "password",
           },
           confirmPassword: { type: "string", format: "password" },
+          termsAccepted: {
+            type: "boolean",
+            enum: [true],
+            description: "Must be true to accept the current Terms and Conditions and Privacy Policy.",
+          },
         },
       },
       LoginRequest: {
@@ -240,11 +449,46 @@ export const openApiDocument = {
         required: ["email", "password"],
         properties: {
           email: { type: "string", format: "email", maxLength: 254 },
-          password: { type: "string", minLength: 1, format: "password" },
+          password: {
+            type: "string",
+            minLength: 1,
+            description: "Maximum 72 UTF-8 bytes.",
+            format: "password",
+          },
           rememberMe: {
             type: "boolean",
             default: false,
             description: "When true, keeps the session for up to 30 days.",
+          },
+        },
+        ForgotPasswordRequest: {
+          type: "object",
+          required: ["email"],
+          properties: {
+            email: { type: "string", format: "email", maxLength: 254 },
+          },
+        },
+        ResetPasswordRequest: {
+          type: "object",
+          required: ["token", "password", "confirmPassword"],
+          properties: {
+            token: { type: "string", minLength: 32, maxLength: 128 },
+            password: {
+              type: "string",
+              minLength: 8,
+              description: "Maximum 72 UTF-8 bytes.",
+              format: "password",
+            },
+            confirmPassword: { type: "string", format: "password" },
+          },
+        },
+        PasswordResetResponse: {
+          type: "object",
+          required: ["success", "message", "data"],
+          properties: {
+            success: { type: "boolean", example: true },
+            message: { type: "string" },
+            data: { type: "object", nullable: true, example: null },
           },
         },
       },
@@ -345,6 +589,18 @@ export const openApiDocument = {
           },
         },
       },
+      AgeRestrictionError: {
+        description: "Account creation or access is restricted to users aged 18 or older",
+        content: {
+          "application/json": {
+            schema: { $ref: "#/components/schemas/ErrorResponse" },
+            example: {
+              success: false,
+              message: "You must be at least 18 years old to use Socially.",
+            },
+          },
+        },
+      },
       PayloadTooLarge: {
         description: "Request body exceeds the 10 KB limit",
         content: {
@@ -354,7 +610,7 @@ export const openApiDocument = {
         },
       },
       RateLimitError: {
-        description: "Too many registration or login requests",
+        description: "Too many authentication or password reset requests",
         content: {
           "application/json": {
             schema: { $ref: "#/components/schemas/ErrorResponse" },
@@ -363,6 +619,14 @@ export const openApiDocument = {
       },
       ServerError: {
         description: "Unexpected server error",
+        content: {
+          "application/json": {
+            schema: { $ref: "#/components/schemas/ErrorResponse" },
+          },
+        },
+      },
+      ServiceUnavailableError: {
+        description: "Password reset email is not configured or could not be delivered",
         content: {
           "application/json": {
             schema: { $ref: "#/components/schemas/ErrorResponse" },

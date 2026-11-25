@@ -27,16 +27,38 @@ it. Never commit `.env.development` or production credentials.
 
 ## Authentication API
 
-All responses use `{ "success": boolean, "message": string, "data": object }`
-on success. Errors use `success: false` and a safe message; validation failures
-also return field-level `errors`.
+Successful responses use `{ "success": true, "message": string, "data": object | null }`.
+Errors use `success: false` and a safe message; validation failures also return
+field-level `errors`.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `POST` | `/api/auth/register` | Validate and create an account |
 | `POST` | `/api/auth/login` | Verify credentials and start a session |
+| `POST` | `/api/auth/forgot-password` | Email a single-use password reset link |
+| `POST` | `/api/auth/reset-password` | Set a new password with a valid reset token |
 | `POST` | `/api/auth/logout` | Clear the session cookie |
 | `GET` | `/api/auth/me` | Return the authenticated user |
+
+Password reset supports any provider that offers SMTP submission. Configure
+`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, and `SMTP_FROM` in `.env.development`
+(or your deployment environment). Set both `SMTP_USER` and `SMTP_PASSWORD` if
+the provider requires authentication; when `SMTP_FROM` is blank, `SMTP_USER`
+is used as the sender.
+
+Common settings use port `587` with `SMTP_SECURE=false` (STARTTLS). Gmail uses
+`smtp.gmail.com` and requires a Google App Password. Outlook.com commonly uses
+`smtp-mail.outlook.com`; Microsoft 365 commonly uses `smtp.office365.com` and
+may require SMTP AUTH to be enabled for the mailbox. Use the credentials or
+app-password method allowed by the provider. Keep credentials private and
+never commit them.
+
+Yopmail is a receiving/disposable inbox service, not an SMTP sending provider.
+Users can request a reset to a valid Yopmail address without special settings;
+the configured SMTP provider sends the message, subject to the recipient
+provider's delivery rules. The reset link uses `CLIENT_URL`, expires after 15
+minutes, and can be used once. If SMTP is missing or delivery fails, the API
+returns an explicit service error instead of reporting a false success.
 
 The JWT is issued only in an `HttpOnly`, `SameSite=Lax` cookie; it is not
 returned in JSON or stored by the frontend. Production cookies use `Secure`.
@@ -78,7 +100,8 @@ username indexes exist before registration requests are accepted.
 ## Production
 
 Set `NODE_ENV=production`, `MONGO_URI`, `JWT_SECRET` (at least 32 random
-characters), and `CLIENT_URL` in the deployment platform. Then run:
+characters), `CLIENT_URL`, and the SMTP settings above in the deployment
+platform to enable password reset emails. Then run:
 
 ```powershell
 npm run build

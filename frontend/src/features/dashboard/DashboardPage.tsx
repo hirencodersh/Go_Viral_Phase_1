@@ -22,6 +22,7 @@ export function DashboardPage() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [logoutError, setLogoutError] = useState<string | null>(null);
+  const [failedAvatar, setFailedAvatar] = useState<string | null>(null);
 
   const handleLogout = async () => {
     setLogoutError(null);
@@ -80,13 +81,22 @@ export function DashboardPage() {
             </button>
           </nav>
           <div className="sidebar-profile">
-            <span className="profile-avatar">
-              {user?.fullName.charAt(0).toUpperCase()}
-            </span>
-            <span>
+            <Link to="/profile" className="profile-avatar" aria-label="Open profile">
+              {user?.profilePhoto && failedAvatar !== user.profilePhoto ? (
+                <img
+                  src={user.profilePhoto}
+                  alt=""
+                  className="sidebar-profile-photo"
+                  onError={() => setFailedAvatar(user.profilePhoto || null)}
+                />
+              ) : (
+                user?.fullName.charAt(0).toUpperCase()
+              )}
+            </Link>
+            <Link to="/profile">
               <strong>{user?.fullName}</strong>
               <small>@{user?.username}</small>
-            </span>
+            </Link>
           </div>
         </aside>
 

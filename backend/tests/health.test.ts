@@ -23,9 +23,18 @@ describe("Health API", () => {
         "/api/health",
         "/api/auth/register",
         "/api/auth/login",
+        "/api/auth/forgot-password",
+        "/api/auth/reset-password",
         "/api/auth/logout",
         "/api/auth/me",
+        "/api/users/profile",
+        "/api/users/roles",
+        "/api/users/profile/photo",
       ])
+    );
+    expect(response.body.paths["/api/auth/register"].post.responses["403"]).toBeDefined();
+    expect(response.body.components.schemas.RegisterRequest.required).toEqual(
+      expect.arrayContaining(["dateOfBirth", "termsAccepted"])
     );
     expect(response.body.components.securitySchemes.cookieAuth.name).toBe(
       "social_access_token"

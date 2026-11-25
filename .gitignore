@@ -4,6 +4,7 @@
 # Build and test output
 **/dist/
 **/coverage/
+backend/uploads/
 
 # Local environment and secrets
 .env*

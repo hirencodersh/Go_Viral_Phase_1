@@ -1,5 +1,6 @@
 
 import express, { Application, Response } from "express";
+import path from "path";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
@@ -23,6 +24,11 @@ app.use(
 
 app.use(express.json({ limit: "10kb" }));
 app.use(cookieParser());
+app.use(
+  "/uploads",
+  helmet.crossOriginResourcePolicy({ policy: "cross-origin" }),
+  express.static(path.resolve(process.env.UPLOAD_DIR || "uploads"))
+);
 
 app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 

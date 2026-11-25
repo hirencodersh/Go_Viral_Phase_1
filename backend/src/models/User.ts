@@ -1,5 +1,7 @@
 import mongoose, { Schema } from "mongoose";
 
+export type UserRole = "fan" | "creator";
+
 const userSchema = new Schema(
   {
     fullName: {
@@ -23,10 +25,57 @@ const userSchema = new Schema(
       trim: true,
       maxlength: 254,
     },
+    dateOfBirth: {
+      type: Date,
+      required: true,
+    },
+    termsAccepted: {
+      type: Boolean,
+      required: true,
+      default: false,
+    },
+    termsAcceptedAt: {
+      type: Date,
+      required: true,
+    },
+    termsVersion: {
+      type: String,
+      required: true,
+    },
     password: {
       type: String,
       required: true,
       select: false,
+    },
+    passwordResetTokenHash: {
+      type: String,
+      select: false,
+    },
+    passwordResetExpiresAt: {
+      type: Date,
+      select: false,
+    },
+    profilePhoto: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 2048,
+    },
+    bio: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 250,
+    },
+    roles: {
+      type: [String],
+      enum: ["fan", "creator"],
+      default: ["fan"],
+      validate: {
+        validator: (roles: string[]) =>
+          roles.length > 0 && new Set(roles).size === roles.length,
+        message: "At least one unique role is required.",
+      },
     },
   },
   {

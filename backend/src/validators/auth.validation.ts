@@ -9,6 +9,15 @@ const passwordSchema = z
     "Password must not exceed 72 bytes"
   );
 
+const dateOfBirthSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Date of birth must use YYYY-MM-DD format")
+  .refine((value) => {
+    const date = new Date(`${value}T00:00:00.000Z`);
+    return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+  }, "Enter a valid date of birth")
+  .refine((value) => value <= new Date().toISOString().slice(0, 10), "Date of birth cannot be in the future");
+
 export const registerSchema = z
   .object({
     fullName: z.string().trim().min(2).max(80),
@@ -21,8 +30,12 @@ export const registerSchema = z
         "Username must be 3-30 characters and use letters, numbers, dots, or underscores"
       ),
     email: z.string().trim().toLowerCase().email().max(254),
+    dateOfBirth: dateOfBirthSchema,
     password: passwordSchema,
     confirmPassword: z.string(),
+    termsAccepted: z.literal(true, {
+      error: "You must agree to the Terms and Conditions",
+    }),
   })
   .refine((value) => value.password === value.confirmPassword, {
     path: ["confirmPassword"],
@@ -37,6 +50,21 @@ export const loginSchema = z.object({
   ),
   rememberMe: z.boolean().default(false),
 });
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(254),
+});
+
+export const resetPasswordSchema = z
+  .object({
+    token: z.string().min(32).max(128).regex(/^[A-Za-z0-9_-]+$/),
+    password: passwordSchema,
+    confirmPassword: z.string(),
+  })
+  .refine((value) => value.password === value.confirmPassword, {
+    path: ["confirmPassword"],
+    message: "Passwords do not match",
+  });
 
 export const validateBody =
   (schema: z.ZodType): RequestHandler =>

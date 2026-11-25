@@ -5,6 +5,7 @@ import { Link, useNavigate } from "react-router-dom";
 import TextInput from "../../../components/ui/TextInput";
 import { AuthLayout } from "../../../layouts/AuthLayout";
 import { getApiErrorMessage } from "../auth.api";
+import { isAgeRestrictedError } from "../age";
 import { useAuth } from "../hooks/useAuth";
 import { loginSchema, type LoginFormValues } from "../auth.schemas";
 
@@ -27,6 +28,10 @@ export function LoginPage() {
       await login(values);
       navigate("/dashboard", { replace: true });
     } catch (error) {
+      if (isAgeRestrictedError(error)) {
+        navigate("/dashboard/age-restricted", { replace: true });
+        return;
+      }
       setSubmitError(getApiErrorMessage(error));
     }
   });
@@ -57,6 +62,7 @@ export function LoginPage() {
             type="email"
             autoComplete="email"
             placeholder="you@example.com"
+            maxLength={254}
             {...register("email")}
             error={errors.email?.message}
           />
@@ -65,6 +71,7 @@ export function LoginPage() {
             type="password"
             autoComplete="current-password"
             placeholder="Enter your password"
+            maxLength={72}
             {...register("password")}
             error={errors.password?.message}
           />

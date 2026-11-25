@@ -3,6 +3,7 @@ import request from "supertest";
 import { authService } from "../src/services/auth.service";
 import app from "../src/app";
 import { AppError } from "../src/utils/AppError";
+import { AGE_RESTRICTION_MESSAGE } from "../src/utils/age";
 
 jest.mock("../src/services/auth.service", () => ({
   authService: {
@@ -38,8 +39,10 @@ describe("Authentication API", () => {
       fullName: "Taylor Sample",
       username: "taylor.sample",
       email: "taylor@example.com",
+      dateOfBirth: "1990-05-12",
       password: "A-strong-password1",
       confirmPassword: "different-password",
+      termsAccepted: true,
     });
 
     expect(response.status).toBe(400);
@@ -63,8 +66,10 @@ describe("Authentication API", () => {
       fullName: "Taylor Sample",
       username: "Taylor.Sample",
       email: "Taylor@Example.com",
+      dateOfBirth: "1990-05-12",
       password: "A-strong-password1",
       confirmPassword: "A-strong-password1",
+      termsAccepted: true,
     });
 
     expect(response.status).toBe(201);
@@ -77,6 +82,8 @@ describe("Authentication API", () => {
       expect.objectContaining({
         username: "taylor.sample",
         email: "taylor@example.com",
+        dateOfBirth: "1990-05-12",
+        termsAccepted: true,
       })
     );
   });
@@ -90,12 +97,52 @@ describe("Authentication API", () => {
       fullName: "Taylor Sample",
       username: "taylor.sample",
       email: "taylor@example.com",
+      dateOfBirth: "1990-05-12",
       password: "A-strong-password1",
       confirmPassword: "A-strong-password1",
+      termsAccepted: true,
     });
 
     expect(response.status).toBe(409);
     expect(response.body.message).toBe("Email address is already registered");
+  });
+
+  it("requires a valid date of birth and terms acceptance", async () => {
+    const response = await request(app).post("/api/auth/register").send({
+      fullName: "Taylor Sample",
+      username: "taylor.sample",
+      email: "taylor@example.com",
+      dateOfBirth: "2030-02-31",
+      password: "A-strong-password1",
+      confirmPassword: "A-strong-password1",
+      termsAccepted: false,
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ field: "dateOfBirth" }),
+        expect.objectContaining({ field: "termsAccepted" }),
+      ])
+    );
+    expect(service.register).not.toHaveBeenCalled();
+  });
+
+  it("returns an age restriction response when the server blocks an underage registration", async () => {
+    service.register.mockRejectedValue(new AppError(403, AGE_RESTRICTION_MESSAGE));
+
+    const response = await request(app).post("/api/auth/register").send({
+      fullName: "Taylor Sample",
+      username: "taylor.sample",
+      email: "taylor@example.com",
+      dateOfBirth: "2010-05-12",
+      password: "A-strong-password1",
+      confirmPassword: "A-strong-password1",
+      termsAccepted: true,
+    });
+
+    expect(response.status).toBe(403);
+    expect(response.body.message).toBe(AGE_RESTRICTION_MESSAGE);
   });
 
   it("logs in and honors Remember Me with a persistent cookie", async () => {
@@ -143,7 +190,7 @@ describe("Authentication API", () => {
 
   it("returns the current user for a valid cookie", async () => {
     const token = jwt.sign(
-      { sub: user.id },
+      { sub: user.id, dob: "1990-05-12" },
       testSecret,
       { expiresIn: "1h" }
     );
@@ -159,7 +206,7 @@ describe("Authentication API", () => {
   });
 
   it("rejects expired authentication cookies", async () => {
-    const token = jwt.sign({ sub: user.id }, testSecret, { expiresIn: -1 });
+    const token = jwt.sign({ sub: user.id, dob: "1990-05-12" }, testSecret, { expiresIn: -1 });
 
     const response = await request(app)
       .get("/api/auth/me")

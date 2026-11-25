@@ -1,12 +1,21 @@
 import axios from "axios";
 import { apiClient } from "../../services/apiClient";
-import type { LoginFormValues, RegisterFormValues } from "./auth.schemas";
+import type {
+  ForgotPasswordFormValues,
+  LoginFormValues,
+  RegisterFormValues,
+  ResetPasswordFormValues,
+} from "./auth.schemas";
 
 export interface AuthUser {
   id: string;
+  _id?: string;
   fullName: string;
   username: string;
   email: string;
+  profilePhoto?: string;
+  bio?: string;
+  roles: ("fan" | "creator")[];
 }
 
 interface ApiEnvelope<T> {
@@ -38,6 +47,14 @@ export const authApi = {
       input
     );
     return response.data.data.user;
+  },
+
+  async requestPasswordReset(input: ForgotPasswordFormValues): Promise<void> {
+    await apiClient.post("/auth/forgot-password", input);
+  },
+
+  async resetPassword(input: ResetPasswordFormValues): Promise<void> {
+    await apiClient.post("/auth/reset-password", input);
   },
 
   async me(signal?: AbortSignal): Promise<AuthUser> {

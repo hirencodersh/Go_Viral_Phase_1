@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import { User } from "../models/User";
 import { getJwtSecret } from "../config/env";
 import { AppError } from "../utils/AppError";
+import { AGE_RESTRICTION_MESSAGE, calculateAge } from "../utils/age";
 import type {
   AuthResult,
   LoginInput,
@@ -11,21 +12,33 @@ import type {
 } from "../types/auth.types";
 
 const BCRYPT_ROUNDS = 12;
+const TERMS_VERSION = "1.0";
 
 const toPublicUser = (user: {
   _id: { toString(): string };
   fullName: string;
   username: string;
   email: string;
+  profilePhoto?: string;
+  bio?: string;
+  roles?: ("fan" | "creator")[];
 }): PublicUser => ({
   id: user._id.toString(),
+  _id: user._id.toString(),
   fullName: user.fullName,
   username: user.username,
   email: user.email,
+  profilePhoto: user.profilePhoto || "",
+  bio: user.bio || "",
+  roles: user.roles?.length ? user.roles : ["fan"],
 });
 
-const createToken = (userId: string, rememberMe: boolean): string => {
-  return jwt.sign({ sub: userId }, getJwtSecret(), {
+const createToken = (userId: string, rememberMe: boolean, dateOfBirth?: Date | string): string => {
+  const birthDate =
+    dateOfBirth instanceof Date
+      ? dateOfBirth.toISOString().slice(0, 10)
+      : dateOfBirth;
+  return jwt.sign({ sub: userId, dob: birthDate }, getJwtSecret(), {
     expiresIn: rememberMe ? "30d" : "1d",
   });
 };
@@ -49,7 +62,12 @@ const duplicateField = (error: unknown): string | undefined => {
 
 export const authService = {
   async register(input: RegisterInput): Promise<AuthResult> {
-    const { fullName, username, email, password } = input;
+    const { fullName, username, email, dateOfBirth, password, termsAccepted } = input;
+    const birthDate = new Date(`${dateOfBirth}T00:00:00.000Z`);
+    if ((calculateAge(birthDate) ?? -1) < 18) {
+      throw new AppError(403, AGE_RESTRICTION_MESSAGE);
+    }
+
     const existing = await User.findOne({
       $or: [{ email }, { username }],
     }).select("email username");
@@ -69,7 +87,12 @@ export const authService = {
         fullName,
         username,
         email,
+        dateOfBirth: birthDate,
         password: passwordHash,
+        roles: ["fan"],
+        termsAccepted,
+        termsAcceptedAt: new Date(),
+        termsVersion: TERMS_VERSION,
       });
     } catch (error) {
       const field = duplicateField(error);
@@ -83,7 +106,7 @@ export const authService = {
     }
 
     return {
-      token: createToken(user._id.toString(), false),
+      token: createToken(user._id.toString(), false, birthDate),
       rememberMe: false,
       user: toPublicUser(user),
     };
@@ -94,16 +117,19 @@ export const authService = {
     if (!user || !(await bcrypt.compare(input.password, user.password))) {
       throw new AppError(401, "Invalid email or password");
     }
+    if (user.dateOfBirth && (calculateAge(user.dateOfBirth) ?? -1) < 18) {
+      throw new AppError(403, AGE_RESTRICTION_MESSAGE);
+    }
 
     return {
-      token: createToken(user._id.toString(), input.rememberMe),
+      token: createToken(user._id.toString(), input.rememberMe, user.dateOfBirth),
       rememberMe: input.rememberMe,
       user: toPublicUser(user),
     };
   },
 
   async getCurrentUser(userId: string): Promise<PublicUser> {
-    const user = await User.findById(userId).select("fullName username email");
+    const user = await User.findById(userId).select("fullName username email profilePhoto bio roles");
     if (!user) {
       throw new AppError(401, "Authentication is no longer valid");
     }

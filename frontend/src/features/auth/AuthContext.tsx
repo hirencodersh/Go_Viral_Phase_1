@@ -12,12 +12,14 @@ import {
   isUnauthorizedError,
   type AuthUser,
 } from "./auth.api";
+import { isAgeRestrictedError } from "./age";
 import type { LoginFormValues, RegisterFormValues } from "./auth.schemas";
 import { AuthContext } from "./auth.context";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [ageRestricted, setAgeRestricted] = useState(false);
   const [initializationError, setInitializationError] = useState<string | null>(
     null
   );
@@ -32,6 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .then((currentUser) => {
         if (active) {
           setUser(currentUser);
+          setAgeRestricted(false);
           setInitializationError(null);
         }
       })
@@ -41,6 +44,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         if (isUnauthorizedError(error)) {
           setUser(null);
+          setAgeRestricted(false);
+          setInitializationError(null);
+          return;
+        }
+        if (isAgeRestrictedError(error)) {
+          setUser(null);
+          setAgeRestricted(true);
           setInitializationError(null);
           return;
         }
@@ -61,18 +71,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = useCallback(async (input: RegisterFormValues) => {
     const registeredUser = await authApi.register(input);
     setUser(registeredUser);
+    setAgeRestricted(false);
     setInitializationError(null);
   }, []);
 
   const login = useCallback(async (input: LoginFormValues) => {
     const authenticatedUser = await authApi.login(input);
     setUser(authenticatedUser);
+    setAgeRestricted(false);
     setInitializationError(null);
   }, []);
 
   const logout = useCallback(async () => {
     await authApi.logout();
     setUser(null);
+    setAgeRestricted(false);
+  }, []);
+
+  const updateUser = useCallback((updates: Partial<AuthUser>) => {
+    setUser((currentUser) => currentUser ? { ...currentUser, ...updates } : currentUser);
   }, []);
 
   const retrySessionCheck = useCallback(() => {
@@ -85,20 +102,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       user,
       isLoading,
+      ageRestricted,
       initializationError,
       retrySessionCheck,
       register,
       login,
       logout,
+      updateUser,
     }),
     [
       user,
       isLoading,
+      ageRestricted,
       initializationError,
       retrySessionCheck,
       register,
       login,
       logout,
+      updateUser,
     ]
   );
 

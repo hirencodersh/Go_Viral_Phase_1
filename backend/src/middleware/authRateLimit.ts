@@ -8,7 +8,7 @@ export const authRateLimit = rateLimit({
   handler: (_req, res) => {
     res.status(429).json({
       success: false,
-      message: "Too many authentication attempts. Try again later.",
+      message: "Too many account requests. Try again later.",
     });
   },
 });
