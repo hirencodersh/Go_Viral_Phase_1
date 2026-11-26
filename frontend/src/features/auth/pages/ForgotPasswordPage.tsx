@@ -1,3 +1,4 @@
+import axios from "axios";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -11,8 +12,8 @@ import {
 } from "../auth.schemas";
 
 export function ForgotPasswordPage() {
-  const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [requestAccepted, setRequestAccepted] = useState(false);
   const {
     register,
     handleSubmit,
@@ -24,12 +25,24 @@ export function ForgotPasswordPage() {
 
   const onSubmit = handleSubmit(async (values) => {
     setSubmitError(null);
-    setSubmitted(false);
+    setRequestAccepted(false);
     try {
       await authApi.requestPasswordReset(values);
-      setSubmitted(true);
+      setRequestAccepted(true);
     } catch (error) {
-      setSubmitError(getApiErrorMessage(error));
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 429) {
+          setSubmitError("Too many reset requests. Please wait a little and try again.");
+        } else if (!error.response) {
+          setSubmitError(getApiErrorMessage(error));
+        } else {
+          setSubmitError(
+            "We couldn’t send a reset email right now. Please try again later."
+          );
+        }
+      } else {
+        setSubmitError("We couldn’t process your request. Please try again later.");
+      }
     }
   });
 
@@ -41,14 +54,15 @@ export function ForgotPasswordPage() {
         <p className="auth-subtitle">
           Enter your email address and we’ll send you a link to reset your password.
         </p>
-        {submitted && (
-          <div className="form-alert form-alert-success" role="status">
-            If an account exists for that email, reset instructions have been sent.
-          </div>
-        )}
         {submitError && (
           <div className="form-alert" role="alert">
             {submitError}
+          </div>
+        )}
+        {requestAccepted && (
+          <div className="form-alert form-alert-success" role="status">
+            If an account exists for this email, reset instructions have been
+            accepted for delivery. Check your inbox and spam folder.
           </div>
         )}
         <form className="auth-form" onSubmit={onSubmit} noValidate>

@@ -7,13 +7,16 @@ import { ResetPasswordPage } from "./features/auth/pages/ResetPasswordPage";
 import { AgeRestrictedPage } from "./features/auth/pages/AgeRestrictedPage";
 import { DashboardPage } from "./features/dashboard/DashboardPage";
 import { ProfilePage } from "./features/profile/pages/ProfilePage";
+import { ExplorePage } from "./features/posts/pages/ExplorePage";
 import { GuestRoute } from "./routes/GuestRoute";
 import { ProtectedRoute } from "./routes/ProtectedRoute";
 import NotFoundPage from "./pages/NotFoundPage";
+import { ToastViewport } from "./components/ui/ToastViewport";
 
 function App() {
   return (
     <BrowserRouter>
+      <ToastViewport />
       <AuthProvider>
         <Routes>
           <Route path="/dashboard/age-restricted" element={<AgeRestrictedPage />} />
@@ -26,6 +29,7 @@ function App() {
           </Route>
           <Route element={<ProtectedRoute />}>
             <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/explore" element={<ExplorePage />} />
             <Route path="/profile" element={<ProfilePage />} />
           </Route>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />

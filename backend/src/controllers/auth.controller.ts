@@ -26,7 +26,7 @@ const sendAuthResponse = (
   res.status(statusCode).json({
     success: true,
     message: statusCode === 201 ? "Account created successfully" : "Login successful",
-    data: { user: result.user },
+    data: { user: result.user, token: result.token },
   });
 };
 

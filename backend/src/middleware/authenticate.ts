@@ -8,7 +8,20 @@ import { AGE_RESTRICTION_MESSAGE, calculateAge } from "../utils/age";
 export const AUTH_COOKIE_NAME = "social_access_token";
 
 export const authenticate: RequestHandler = (req, _res, next) => {
-  const token: unknown = req.cookies?.[AUTH_COOKIE_NAME];
+  const authorizationHeader = req.get("authorization");
+  let token: unknown;
+
+  if (authorizationHeader !== undefined) {
+    const bearerMatch = /^Bearer\s+(\S+)$/i.exec(authorizationHeader.trim());
+    if (!bearerMatch) {
+      next(new AppError(401, "Invalid or expired authentication token"));
+      return;
+    }
+    token = bearerMatch[1];
+  } else {
+    token = req.cookies?.[AUTH_COOKIE_NAME];
+  }
+
   if (typeof token !== "string" || token.length === 0) {
     next(new AppError(401, "Authentication required"));
     return;

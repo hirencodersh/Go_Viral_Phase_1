@@ -30,9 +30,45 @@ describe("Health API", () => {
         "/api/users/profile",
         "/api/users/roles",
         "/api/users/profile/photo",
+        "/api/posts",
+        "/api/posts/explore",
       ])
     );
     expect(response.body.paths["/api/auth/register"].post.responses["403"]).toBeDefined();
+    expect(response.body.components.securitySchemes.bearerAuth).toMatchObject({
+      type: "http",
+      scheme: "bearer",
+      bearerFormat: "JWT",
+    });
+    expect(
+      response.body.paths["/api/auth/me"].get.security
+    ).toEqual(expect.arrayContaining([expect.objectContaining({ bearerAuth: [] })]));
+    expect(
+      response.body.components.schemas.AuthResponse.properties.data.properties
+        .token
+    ).toBeDefined();
+    expect(response.body.components.schemas.ForgotPasswordRequest.required).toEqual([
+      "email",
+    ]);
+    expect(
+      response.body.paths["/api/auth/forgot-password"].post.responses["429"]
+    ).toBeDefined();
+    expect(
+      response.body.paths["/api/auth/reset-password"].post.responses["500"]
+    ).toBeDefined();
+    expect(response.body.paths["/api/posts"].post.requestBody.content[
+      "multipart/form-data"
+    ].schema.required).toEqual(["media", "title"]);
+    expect(response.body.components.schemas.Post.properties.mediaType.enum).toEqual(
+      ["image", "video"]
+    );
+    expect(
+      response.body.paths["/api/posts/explore"].get.parameters[0].schema
+    ).toMatchObject({ minimum: 1, maximum: 50, default: 20 });
+    expect(
+      response.body.components.schemas.ExplorePostsResponse.properties.data
+        .properties.nextCursor.nullable
+    ).toBe(true);
     expect(response.body.components.schemas.RegisterRequest.required).toEqual(
       expect.arrayContaining(["dateOfBirth", "termsAccepted"])
     );

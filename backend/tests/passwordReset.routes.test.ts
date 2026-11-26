@@ -1,6 +1,7 @@
 import request from "supertest";
 import app from "../src/app";
 import { passwordResetService } from "../src/services/passwordReset.service";
+import { AppError } from "../src/utils/AppError";
 
 jest.mock("../src/services/passwordReset.service", () => ({
   passwordResetService: {
@@ -37,6 +38,23 @@ describe("Password reset API", () => {
       data: null,
     });
     expect(service.requestReset).toHaveBeenCalledWith(email.toLowerCase());
+  });
+
+  it("returns a safe mail-service message when sending is unavailable", async () => {
+    service.requestReset.mockRejectedValue(
+      new AppError(
+        503,
+        "Password reset email is temporarily unavailable. Please try again later."
+      )
+    );
+
+    const response = await request(app)
+      .post("/api/auth/forgot-password")
+      .send({ email: "taylor@example.com" });
+
+    expect(response.status).toBe(503);
+    expect(response.body.message).not.toContain("SMTP_HOST");
+    expect(response.body.message).toMatch(/temporarily unavailable/i);
   });
 
   it("validates reset request email format and maximum length", async () => {

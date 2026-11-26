@@ -18,11 +18,13 @@ const environmentSchema = z
     JWT_SECRET: jwtSecretSchema,
     CLIENT_URL: z.string().url().default("http://localhost:5173"),
     SMTP_HOST: z.string().trim().optional(),
-    SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(587),
-    SMTP_SECURE: z.enum(["true", "false"]).default("false"),
+    SMTP_PORT: z.string().optional(),
+    SMTP_SECURE: z.string().optional(),
     SMTP_USER: z.string().trim().optional(),
+    SMTP_PASS: z.string().optional(),
     SMTP_PASSWORD: z.string().optional(),
     SMTP_FROM: z.string().trim().optional(),
+    RESEND_API_KEY: z.string().trim().optional(),
   })
   .superRefine((config, context) => {
     if (config.NODE_ENV === "production" && !process.env.CLIENT_URL) {

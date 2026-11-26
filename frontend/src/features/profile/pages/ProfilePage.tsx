@@ -19,7 +19,6 @@ export function ProfilePage() {
   const [photoBusy, setPhotoBusy] = useState(false);
   const [roleBusy, setRoleBusy] = useState(false);
   const [logoutBusy, setLogoutBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -48,7 +47,6 @@ export function ProfilePage() {
       setProfile(updated);
       updateUser({ username: updated.username, bio: updated.bio, profilePhoto: updated.profilePhoto, roles: updated.roles });
       setEditOpen(false);
-      setMessage("Profile updated successfully");
     } catch (caught) {
       setError(getApiErrorMessage(caught));
     } finally {
@@ -63,7 +61,6 @@ export function ProfilePage() {
       const updated = await profileService.updateRoles(roles);
       setProfile(updated);
       updateUser({ roles: updated.roles });
-      setMessage("Account type updated successfully");
     } catch (caught) {
       setError(getApiErrorMessage(caught));
     } finally {
@@ -78,7 +75,6 @@ export function ProfilePage() {
       const updated = await profileService.uploadPhoto(file);
       setProfile(updated);
       updateUser({ profilePhoto: updated.profilePhoto });
-      setMessage("Profile photo uploaded successfully");
       return updated.profilePhoto;
     } catch (caught) {
       setError(getApiErrorMessage(caught));
@@ -114,7 +110,6 @@ export function ProfilePage() {
           <h1>Profile settings</h1>
           <p>Make your profile yours and choose how you want to be part of the community.</p>
         </section>
-        {message && <div className="profile-notice profile-notice-success" role="status">{message}</div>}
         {error && <div className="profile-notice profile-notice-error" role="alert">{error}</div>}
         {profile && (
           <>

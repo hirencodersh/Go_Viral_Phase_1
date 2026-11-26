@@ -4,7 +4,7 @@ export const openApiDocument = {
     title: "Social Media Platform API",
     version: "1.0.0",
     description:
-      "REST API for the Socially application. Authentication is managed with an HttpOnly cookie named `social_access_token`; Swagger UI keeps this cookie in the browser after login or registration.",
+      "REST API for the Socially application. Register and login return a JWT for `Authorization: Bearer <token>` and also set an HttpOnly `social_access_token` cookie for browser sessions.",
   },
   servers: [
     {
@@ -16,6 +16,7 @@ export const openApiDocument = {
     { name: "System", description: "Service status and health" },
     { name: "Authentication", description: "Account and session endpoints" },
     { name: "Profiles", description: "User profile and account role management" },
+    { name: "Posts", description: "Create photo and video posts and view the feed" },
   ],
   paths: {
     "/": {
@@ -61,7 +62,7 @@ export const openApiDocument = {
         tags: ["Authentication"],
         summary: "Register an account",
         description:
-          "Creates an account and starts a browser session by setting the HttpOnly authentication cookie.",
+          "Creates an account, returns a JWT access token, and sets the HttpOnly authentication cookie.",
         requestBody: {
           required: true,
           content: {
@@ -85,7 +86,7 @@ export const openApiDocument = {
             headers: {
               "Set-Cookie": {
                 description:
-                  "HttpOnly session cookie. Browsers and Swagger UI send it automatically on subsequent requests.",
+                  "HttpOnly session cookie for browser clients. The response body also contains a JWT for Bearer authentication.",
                 schema: { type: "string" },
               },
             },
@@ -109,7 +110,7 @@ export const openApiDocument = {
         tags: ["Authentication"],
         summary: "Log in",
         description:
-          "Verifies credentials and sets the HttpOnly authentication cookie. Setting `rememberMe` to true extends the session to 30 days; otherwise it is a browser-session cookie.",
+          "Verifies credentials, returns a JWT access token, and sets the HttpOnly authentication cookie. Setting `rememberMe` to true extends the session to 30 days; otherwise it is a browser-session cookie.",
         requestBody: {
           required: true,
           content: {
@@ -129,7 +130,7 @@ export const openApiDocument = {
             headers: {
               "Set-Cookie": {
                 description:
-                  "HttpOnly session cookie. Browsers and Swagger UI send it automatically on subsequent requests.",
+                  "HttpOnly session cookie for browser clients. The response body also contains a JWT for Bearer authentication.",
                 schema: { type: "string" },
               },
             },
@@ -153,7 +154,7 @@ export const openApiDocument = {
         tags: ["Authentication"],
         summary: "Request a password reset email",
         description:
-          "Sends a short-lived reset link when the email belongs to an account. The same generic response is returned for unknown email addresses.",
+          "Requests a short-lived reset link. A generic accepted response is returned for unknown email addresses; SMTP configuration and connection failures use a generic service-unavailable response.",
         requestBody: {
           required: true,
           content: {
@@ -175,6 +176,7 @@ export const openApiDocument = {
           "400": { $ref: "#/components/responses/ValidationError" },
           "429": { $ref: "#/components/responses/RateLimitError" },
           "503": { $ref: "#/components/responses/ServiceUnavailableError" },
+          "500": { $ref: "#/components/responses/ServerError" },
         },
       },
     },
@@ -210,6 +212,7 @@ export const openApiDocument = {
             },
           },
           "429": { $ref: "#/components/responses/RateLimitError" },
+          "500": { $ref: "#/components/responses/ServerError" },
         },
       },
     },
@@ -246,7 +249,7 @@ export const openApiDocument = {
       get: {
         tags: ["Authentication"],
         summary: "Get the current authenticated user",
-        security: [{ cookieAuth: [] }],
+        security: [{ bearerAuth: [] }, { cookieAuth: [] }],
         responses: {
           "200": {
             description: "Authenticated user's public profile",
@@ -266,7 +269,7 @@ export const openApiDocument = {
       get: {
         tags: ["Profiles"],
         summary: "Get logged-in user's profile",
-        security: [{ cookieAuth: [] }],
+        security: [{ bearerAuth: [] }, { cookieAuth: [] }],
         responses: {
           "200": {
             description: "Profile fetched successfully",
@@ -280,7 +283,7 @@ export const openApiDocument = {
       put: {
         tags: ["Profiles"],
         summary: "Update logged-in user's username and bio",
-        security: [{ cookieAuth: [] }],
+        security: [{ bearerAuth: [] }, { cookieAuth: [] }],
         requestBody: {
           required: true,
           content: { "application/json": { schema: { $ref: "#/components/schemas/ProfileUpdateRequest" } } },
@@ -301,7 +304,7 @@ export const openApiDocument = {
       patch: {
         tags: ["Profiles"],
         summary: "Update logged-in user's account roles",
-        security: [{ cookieAuth: [] }],
+        security: [{ bearerAuth: [] }, { cookieAuth: [] }],
         requestBody: {
           required: true,
           content: { "application/json": { schema: { $ref: "#/components/schemas/RoleUpdateRequest" } } },
@@ -321,7 +324,7 @@ export const openApiDocument = {
       post: {
         tags: ["Profiles"],
         summary: "Upload or replace profile photo",
-        security: [{ cookieAuth: [] }],
+        security: [{ bearerAuth: [] }, { cookieAuth: [] }],
         requestBody: {
           required: true,
           content: {
@@ -346,9 +349,104 @@ export const openApiDocument = {
         },
       },
     },
+    "/api/posts": {
+      get: {
+        tags: ["Posts"],
+        summary: "Get the latest posts",
+        description: "Returns up to 50 recent posts with their author details.",
+        security: [{ bearerAuth: [] }, { cookieAuth: [] }],
+        responses: {
+          "200": {
+            description: "Post feed",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/PostFeedResponse" },
+              },
+            },
+          },
+          "401": { $ref: "#/components/responses/UnauthorizedError" },
+        },
+      },
+      post: {
+        tags: ["Posts"],
+        summary: "Publish a photo or video post",
+        description:
+          "Fans and creators can publish a JPG, PNG, WebP, MP4, WebM, or MOV file up to 50 MB with a title and optional caption.",
+        security: [{ bearerAuth: [] }, { cookieAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "multipart/form-data": {
+              schema: {
+                type: "object",
+                required: ["media", "title"],
+                properties: {
+                  media: { type: "string", format: "binary" },
+                  title: { type: "string", minLength: 1, maxLength: 120 },
+                  caption: { type: "string", maxLength: 1000 },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "201": {
+            description: "Post published",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/PostResponse" },
+              },
+            },
+          },
+          "400": { $ref: "#/components/responses/ValidationError" },
+          "401": { $ref: "#/components/responses/UnauthorizedError" },
+          "413": { $ref: "#/components/responses/PayloadTooLarge" },
+        },
+      },
+    },
+    "/api/posts/explore": {
+      get: {
+        tags: ["Posts"],
+        summary: "Explore all users' posts",
+        description:
+          "Returns a cursor-paginated feed of image and video posts from all users.",
+        security: [{ bearerAuth: [] }, { cookieAuth: [] }],
+        parameters: [
+          {
+            name: "limit",
+            in: "query",
+            schema: { type: "integer", minimum: 1, maximum: 50, default: 20 },
+          },
+          {
+            name: "cursor",
+            in: "query",
+            schema: { type: "string" },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Explore feed page",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ExplorePostsResponse" },
+              },
+            },
+          },
+          "400": { $ref: "#/components/responses/ValidationError" },
+          "401": { $ref: "#/components/responses/UnauthorizedError" },
+        },
+      },
+    },
   },
   components: {
     securitySchemes: {
+      bearerAuth: {
+        type: "http",
+        scheme: "bearer",
+        bearerFormat: "JWT",
+        description:
+          "Use the JWT returned by register or login as `Authorization: Bearer <token>`.",
+      },
       cookieAuth: {
         type: "apiKey",
         in: "cookie",
@@ -377,6 +475,77 @@ export const openApiDocument = {
           success: { type: "boolean", example: true },
           message: { type: "string" },
           data: { $ref: "#/components/schemas/ProfileData" },
+        },
+      },
+      PostAuthor: {
+        type: "object",
+        required: ["id", "username", "fullName", "profilePhoto"],
+        properties: {
+          id: { type: "string" },
+          username: { type: "string" },
+          fullName: { type: "string" },
+          profilePhoto: { type: "string" },
+        },
+      },
+      Post: {
+        type: "object",
+        required: [
+          "id",
+          "title",
+          "caption",
+          "mediaUrl",
+          "mediaType",
+          "createdAt",
+          "author",
+        ],
+        properties: {
+          id: { type: "string" },
+          title: { type: "string", maxLength: 120 },
+          caption: { type: "string", maxLength: 1000 },
+          mediaUrl: { type: "string", format: "uri" },
+          mediaType: { type: "string", enum: ["image", "video"] },
+          createdAt: { type: "string", format: "date-time" },
+          author: { $ref: "#/components/schemas/PostAuthor" },
+        },
+      },
+      PostFeedResponse: {
+        type: "object",
+        required: ["success", "message", "data"],
+        properties: {
+          success: { type: "boolean", example: true },
+          message: { type: "string", example: "Posts fetched successfully" },
+          data: {
+            type: "array",
+            items: { $ref: "#/components/schemas/Post" },
+          },
+        },
+      },
+      ExplorePostsResponse: {
+        type: "object",
+        required: ["success", "message", "data"],
+        properties: {
+          success: { type: "boolean", example: true },
+          message: { type: "string", example: "Explore feed fetched successfully" },
+          data: {
+            type: "object",
+            required: ["posts", "nextCursor"],
+            properties: {
+              posts: {
+                type: "array",
+                items: { $ref: "#/components/schemas/Post" },
+              },
+              nextCursor: { type: "string", nullable: true },
+            },
+          },
+        },
+      },
+      PostResponse: {
+        type: "object",
+        required: ["success", "message", "data"],
+        properties: {
+          success: { type: "boolean", example: true },
+          message: { type: "string", example: "Post published successfully" },
+          data: { $ref: "#/components/schemas/Post" },
         },
       },
       ProfileUpdateRequest: {
@@ -461,35 +630,35 @@ export const openApiDocument = {
             description: "When true, keeps the session for up to 30 days.",
           },
         },
-        ForgotPasswordRequest: {
-          type: "object",
-          required: ["email"],
-          properties: {
-            email: { type: "string", format: "email", maxLength: 254 },
-          },
+      },
+      ForgotPasswordRequest: {
+        type: "object",
+        required: ["email"],
+        properties: {
+          email: { type: "string", format: "email", maxLength: 254 },
         },
-        ResetPasswordRequest: {
-          type: "object",
-          required: ["token", "password", "confirmPassword"],
-          properties: {
-            token: { type: "string", minLength: 32, maxLength: 128 },
-            password: {
-              type: "string",
-              minLength: 8,
-              description: "Maximum 72 UTF-8 bytes.",
-              format: "password",
-            },
-            confirmPassword: { type: "string", format: "password" },
+      },
+      ResetPasswordRequest: {
+        type: "object",
+        required: ["token", "password", "confirmPassword"],
+        properties: {
+          token: { type: "string", minLength: 32, maxLength: 128 },
+          password: {
+            type: "string",
+            minLength: 8,
+            description: "Maximum 72 UTF-8 bytes.",
+            format: "password",
           },
+          confirmPassword: { type: "string", format: "password" },
         },
-        PasswordResetResponse: {
-          type: "object",
-          required: ["success", "message", "data"],
-          properties: {
-            success: { type: "boolean", example: true },
-            message: { type: "string" },
-            data: { type: "object", nullable: true, example: null },
-          },
+      },
+      PasswordResetResponse: {
+        type: "object",
+        required: ["success", "message", "data"],
+        properties: {
+          success: { type: "boolean", example: true },
+          message: { type: "string" },
+          data: { type: "object", nullable: true, example: null },
         },
       },
       HealthResponse: {
@@ -509,8 +678,15 @@ export const openApiDocument = {
           message: { type: "string", example: "Login successful" },
           data: {
             type: "object",
-            required: ["user"],
-            properties: { user: { $ref: "#/components/schemas/PublicUser" } },
+            required: ["user", "token"],
+            properties: {
+              user: { $ref: "#/components/schemas/PublicUser" },
+              token: {
+                type: "string",
+                description:
+                  "JWT access token. Send it as `Authorization: Bearer <token>` on protected requests.",
+              },
+            },
           },
         },
       },

@@ -75,7 +75,7 @@ describe("Authentication API", () => {
     expect(response.status).toBe(201);
     expect(response.body).toMatchObject({
       success: true,
-      data: { user },
+      data: { user, token: "signed-token" },
     });
     expect(response.headers["set-cookie"][0]).toContain("HttpOnly");
     expect(service.register).toHaveBeenCalledWith(
@@ -160,6 +160,7 @@ describe("Authentication API", () => {
 
     expect(response.status).toBe(200);
     expect(response.body.data.user).toEqual(user);
+    expect(response.body.data.token).toBe("signed-token");
     expect(response.headers["set-cookie"][0]).toContain("Max-Age=2592000");
     expect(service.login).toHaveBeenCalledWith(
       expect.objectContaining({ rememberMe: true })
@@ -203,6 +204,42 @@ describe("Authentication API", () => {
     expect(response.status).toBe(200);
     expect(response.body.data.user).toEqual(user);
     expect(service.getCurrentUser).toHaveBeenCalledWith(user.id);
+  });
+
+  it("returns the current user for a valid Bearer token", async () => {
+    const token = jwt.sign(
+      { sub: user.id, dob: "1990-05-12" },
+      testSecret,
+      { expiresIn: "1h" }
+    );
+    service.getCurrentUser.mockResolvedValue(user);
+
+    const response = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.user).toEqual(user);
+    expect(service.getCurrentUser).toHaveBeenCalledWith(user.id);
+  });
+
+  it("rejects malformed Bearer authorization instead of falling back to a cookie", async () => {
+    const cookieToken = jwt.sign(
+      { sub: user.id, dob: "1990-05-12" },
+      testSecret,
+      { expiresIn: "1h" }
+    );
+
+    const response = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", "Basic invalid")
+      .set("Cookie", `social_access_token=${cookieToken}`);
+
+    expect(response.status).toBe(401);
+    expect(response.body.message).toBe(
+      "Invalid or expired authentication token"
+    );
+    expect(service.getCurrentUser).not.toHaveBeenCalled();
   });
 
   it("rejects expired authentication cookies", async () => {

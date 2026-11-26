@@ -1,52 +1,59 @@
 import { createHash, randomBytes } from "crypto";
 import bcrypt from "bcryptjs";
-import nodemailer from "nodemailer";
 import { User } from "../models/User";
 import { AppError } from "../utils/AppError";
+import {
+  emailService,
+  getEmailServiceErrorCode,
+} from "./email.service";
 
 const BCRYPT_ROUNDS = 12;
 const RESET_TOKEN_LIFETIME_MS = 15 * 60 * 1000;
+const RESET_EMAIL_ERROR =
+  "Password reset email is temporarily unavailable. Please try again later.";
 
 const hashToken = (token: string): string =>
   createHash("sha256").update(token).digest("hex");
 
-const createMailTransport = () => {
-  const host = process.env.SMTP_HOST?.trim();
-  const user = process.env.SMTP_USER?.trim();
-  const password = process.env.SMTP_PASSWORD;
-  const from = process.env.SMTP_FROM?.trim() || user;
-  const port = Number(process.env.SMTP_PORT || 587);
-
-  if (!host) {
-    throw new AppError(
-      503,
-      "SMTP_HOST is missing. Configure your outgoing mail provider in backend/.env.development."
-    );
-  }
-  if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new AppError(503, "SMTP_PORT must be a number between 1 and 65535.");
-  }
-  if (Boolean(user) !== Boolean(password)) {
-    throw new AppError(503, "Set both SMTP_USER and SMTP_PASSWORD for email authentication.");
-  }
-  if (!from) {
-    throw new AppError(503, "Set SMTP_FROM or SMTP_USER as the password reset sender address.");
-  }
-
-  return {
-    from,
-    transporter: nodemailer.createTransport({
-      host,
-      port,
-      secure: process.env.SMTP_SECURE === "true" || port === 465,
-      ...(user && password ? { auth: { user, pass: password } } : {}),
-    }),
-  };
-};
+const buildResetEmailHtml = (resetUrl: string): string => `
+<!doctype html>
+<html lang="en">
+  <body style="margin:0;padding:32px 16px;background:#f3f6f4;font-family:Arial,sans-serif;color:#1b3928">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#fff;border:1px solid #dfe8e1;border-radius:16px">
+            <tr>
+              <td style="padding:32px">
+                <div style="font-size:20px;font-weight:700;color:#1b3928">socially</div>
+                <h1 style="margin:28px 0 12px;font-size:24px">Reset your password</h1>
+                <p style="margin:0 0 24px;color:#59685e;line-height:1.6">We received a request to reset the password for your Socially account. Use the button below to choose a new password.</p>
+                <p style="margin:0 0 24px">
+                  <a href="${resetUrl}" style="display:inline-block;padding:14px 22px;background:#4add82;border-radius:9px;color:#143520;font-weight:700;text-decoration:none">Reset password</a>
+                </p>
+                <p style="margin:0 0 18px;color:#59685e;line-height:1.6">This link expires in <strong>15 minutes</strong> and can only be used once.</p>
+                <p style="margin:0;color:#7a877e;font-size:13px;line-height:1.6">If you did not request a password reset, you can safely ignore this email.</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`.trim();
 
 export const passwordResetService = {
   async requestReset(email: string): Promise<void> {
-    const mail = createMailTransport();
+    try {
+      await emailService.verifyEmailConnection();
+    } catch (error) {
+      console.error(
+        "Password reset email service unavailable:",
+        getEmailServiceErrorCode(error)
+      );
+      throw new AppError(503, RESET_EMAIL_ERROR);
+    }
+
     const user = await User.findOne({ email }).select("_id email");
     if (!user) {
       return;
@@ -73,28 +80,33 @@ export const passwordResetService = {
     resetUrl.searchParams.set("token", token);
 
     try {
-      await mail.transporter.sendMail({
-        from: mail.from,
+      await emailService.sendEmail({
         to: user.email,
         subject: "Reset your Socially password",
         text: `Use this link to reset your password: ${resetUrl.toString()}\n\nThis link expires in 15 minutes. If you did not request a reset, you can ignore this email.`,
-        html: `<p>Use the link below to reset your Socially password. It expires in 15 minutes.</p><p><a href="${resetUrl.toString()}">Reset your password</a></p><p>If you did not request a reset, you can ignore this email.</p>`,
+        html: buildResetEmailHtml(resetUrl.toString()),
       });
     } catch (error) {
-      await User.updateOne(
-        { _id: user._id, passwordResetTokenHash: tokenHash },
-        {
-          $unset: {
-            passwordResetTokenHash: "",
-            passwordResetExpiresAt: "",
-          },
-        }
-      );
+      try {
+        await User.updateOne(
+          { _id: user._id, passwordResetTokenHash: tokenHash },
+          {
+            $unset: {
+              passwordResetTokenHash: "",
+              passwordResetExpiresAt: "",
+            },
+          }
+        );
+      } catch (cleanupError) {
+        console.error(
+          "Failed to clear password reset token after email failure:",
+          getEmailServiceErrorCode(cleanupError)
+        );
+      }
       console.error(
         "Password reset email delivery failed:",
-        error instanceof Error ? error.name : "Unknown error"
+        getEmailServiceErrorCode(error)
       );
-      throw new AppError(503, "Unable to send password reset email. Please try again later.");
     }
   },
 

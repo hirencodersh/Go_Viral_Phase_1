@@ -1,5 +1,8 @@
 
 import mongoose from "mongoose";
+import { migrateLegacyProfiles } from "./migrateLegacyProfiles";
+import { Post } from "../models/Post";
+import { Profile } from "../models/Profile";
 import { User } from "../models/User";
 
 const connectDB = async (): Promise<void> => {
@@ -10,7 +13,8 @@ const connectDB = async (): Promise<void> => {
   }
 
   await mongoose.connect(mongoURI, { serverSelectionTimeoutMS: 10000 });
-  await User.init();
+  await Promise.all([User.init(), Profile.init(), Post.init()]);
+  await migrateLegacyProfiles();
 
   console.log("MongoDB connected successfully!");
   console.log(`Database: ${mongoose.connection.name}`);

@@ -1,4 +1,5 @@
 import type { ErrorRequestHandler } from "express";
+import multer from "multer";
 import { ZodError } from "zod";
 import { AppError } from "../utils/AppError";
 
@@ -27,6 +28,12 @@ export const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
     typeof error.status === "number"
       ? error.status
       : undefined;
+  const uploadStatus =
+    error instanceof multer.MulterError
+      ? error.code === "LIMIT_FILE_SIZE"
+        ? 413
+        : 400
+      : undefined;
   const statusCode =
     error instanceof AppError
       ? error.statusCode
@@ -34,6 +41,8 @@ export const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
         ? 400
         : duplicateKey
           ? 409
+          : uploadStatus
+            ? uploadStatus
           : parserStatus === 400 || parserStatus === 413
             ? parserStatus
             : 500;
@@ -46,6 +55,10 @@ export const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
           ? "Request body is too large"
       : duplicateKey
         ? "An account with these details already exists"
+          : uploadStatus === 413
+            ? "Uploaded file is too large"
+            : uploadStatus === 400
+              ? "Invalid file upload"
         : statusCode === 500
           ? "Internal server error"
           : "Request failed";

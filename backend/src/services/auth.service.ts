@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { Profile } from "../models/Profile";
 import { User } from "../models/User";
 import { getJwtSecret } from "../config/env";
 import { AppError } from "../utils/AppError";
@@ -14,23 +15,27 @@ import type {
 const BCRYPT_ROUNDS = 12;
 const TERMS_VERSION = "1.0";
 
-const toPublicUser = (user: {
+const toPublicUser = (
+  user: {
   _id: { toString(): string };
-  fullName: string;
-  username: string;
   email: string;
-  profilePhoto?: string;
-  bio?: string;
-  roles?: ("fan" | "creator")[];
-}): PublicUser => ({
+  },
+  profile: {
+    fullName: string;
+    username: string;
+    profilePhoto: string;
+    bio: string;
+    roles: ("fan" | "creator")[];
+  }
+): PublicUser => ({
   id: user._id.toString(),
   _id: user._id.toString(),
-  fullName: user.fullName,
-  username: user.username,
+  fullName: profile.fullName,
+  username: profile.username,
   email: user.email,
-  profilePhoto: user.profilePhoto || "",
-  bio: user.bio || "",
-  roles: user.roles?.length ? user.roles : ["fan"],
+  profilePhoto: profile.profilePhoto || "",
+  bio: profile.bio || "",
+  roles: profile.roles?.length ? profile.roles : ["fan"],
 });
 
 const createToken = (userId: string, rememberMe: boolean, dateOfBirth?: Date | string): string => {
@@ -68,14 +73,15 @@ export const authService = {
       throw new AppError(403, AGE_RESTRICTION_MESSAGE);
     }
 
-    const existing = await User.findOne({
-      $or: [{ email }, { username }],
-    }).select("email username");
-
-    if (existing?.email === email) {
+    const existingEmail = await User.findOne({ email }).select("email");
+    if (existingEmail) {
       throw new AppError(409, "Email address is already registered");
     }
-    if (existing?.username === username) {
+
+    const existingUsername = await Profile.findOne({ username }).select(
+      "username"
+    );
+    if (existingUsername) {
       throw new AppError(409, "Username is already taken");
     }
 
@@ -84,12 +90,9 @@ export const authService = {
 
     try {
       user = await User.create({
-        fullName,
-        username,
         email,
         dateOfBirth: birthDate,
         password: passwordHash,
-        roles: ["fan"],
         termsAccepted,
         termsAcceptedAt: new Date(),
         termsVersion: TERMS_VERSION,
@@ -99,7 +102,24 @@ export const authService = {
       if (field === "email") {
         throw new AppError(409, "Email address is already registered");
       }
-      if (field === "username") {
+      throw error;
+    }
+
+    let profile;
+    try {
+      profile = await Profile.create({
+        user: user._id,
+        fullName,
+        username,
+        roles: ["fan"],
+      });
+    } catch (error) {
+      try {
+        await User.deleteOne({ _id: user._id });
+      } catch (cleanupError) {
+        console.error("Failed to roll back account without a profile:", cleanupError);
+      }
+      if (duplicateField(error) === "username") {
         throw new AppError(409, "Username is already taken");
       }
       throw error;
@@ -108,7 +128,7 @@ export const authService = {
     return {
       token: createToken(user._id.toString(), false, birthDate),
       rememberMe: false,
-      user: toPublicUser(user),
+      user: toPublicUser(user, profile),
     };
   },
 
@@ -121,19 +141,29 @@ export const authService = {
       throw new AppError(403, AGE_RESTRICTION_MESSAGE);
     }
 
+    const profile = await Profile.findOne({ user: user._id });
+    if (!profile) {
+      throw new AppError(500, "Account profile is unavailable");
+    }
+
     return {
       token: createToken(user._id.toString(), input.rememberMe, user.dateOfBirth),
       rememberMe: input.rememberMe,
-      user: toPublicUser(user),
+      user: toPublicUser(user, profile),
     };
   },
 
   async getCurrentUser(userId: string): Promise<PublicUser> {
-    const user = await User.findById(userId).select("fullName username email profilePhoto bio roles");
+    const user = await User.findById(userId).select("email");
     if (!user) {
       throw new AppError(401, "Authentication is no longer valid");
     }
 
-    return toPublicUser(user);
+    const profile = await Profile.findOne({ user: user._id });
+    if (!profile) {
+      throw new AppError(500, "Account profile is unavailable");
+    }
+
+    return toPublicUser(user, profile);
   },
 };

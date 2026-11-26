@@ -1,4 +1,5 @@
-import { User, type UserRole } from "../models/User";
+import { Profile, type UserRole } from "../models/Profile";
+import { User } from "../models/User";
 import { AppError } from "../utils/AppError";
 
 export interface ProfileData {
@@ -10,29 +11,40 @@ export interface ProfileData {
   roles: UserRole[];
 }
 
-const duplicateField = (error: unknown): "email" | "username" | undefined => {
+const duplicateUsername = (error: unknown): boolean => {
   if (typeof error === "object" && error !== null && "keyPattern" in error) {
     const keyPattern = (error as { keyPattern: Record<string, unknown> }).keyPattern;
-    if ("username" in keyPattern) return "username";
-    if ("email" in keyPattern) return "email";
+    return "username" in keyPattern;
   }
-  return undefined;
+  return false;
 };
 
-const toProfile = (user: any): ProfileData => ({
+const toProfile = (
+  user: { _id: { toString(): string }; email: string },
+  profile: {
+    username: string;
+    profilePhoto: string;
+    bio: string;
+    roles: UserRole[];
+  }
+): ProfileData => ({
   _id: user._id.toString(),
-  username: user.username,
+  username: profile.username,
   email: user.email,
-  profilePhoto: user.profilePhoto || "",
-  bio: user.bio || "",
-  roles: user.roles?.length ? user.roles : ["fan"],
+  profilePhoto: profile.profilePhoto || "",
+  bio: profile.bio || "",
+  roles: profile.roles?.length ? profile.roles : ["fan"],
 });
 
 export const profileService = {
   async getProfile(userId: string): Promise<ProfileData> {
-    const user = await User.findById(userId).select("-password");
+    const [user, profile] = await Promise.all([
+      User.findById(userId).select("email"),
+      Profile.findOne({ user: userId }),
+    ]);
     if (!user) throw new AppError(401, "Authentication is no longer valid");
-    return toProfile(user);
+    if (!profile) throw new AppError(404, "Profile not found");
+    return toProfile(user, profile);
   },
 
   async updateProfile(
@@ -40,37 +52,38 @@ export const profileService = {
     input: { username: string; bio: string }
   ): Promise<ProfileData> {
     try {
-      const user = await User.findByIdAndUpdate(
-        userId,
+      const profile = await Profile.findOneAndUpdate(
+        { user: userId },
         { username: input.username, bio: input.bio },
         { new: true, runValidators: true }
-      ).select("-password");
-      if (!user) throw new AppError(401, "Authentication is no longer valid");
-      return toProfile(user);
+      );
+      if (!profile) throw new AppError(404, "Profile not found");
+      return await this.getProfile(userId);
     } catch (error) {
-      const field = duplicateField(error);
-      if (field === "username") throw new AppError(409, "Username is already taken");
+      if (duplicateUsername(error)) {
+        throw new AppError(409, "Username is already taken");
+      }
       throw error;
     }
   },
 
   async updateRoles(userId: string, roles: UserRole[]): Promise<ProfileData> {
-    const user = await User.findByIdAndUpdate(
-      userId,
+    const profile = await Profile.findOneAndUpdate(
+      { user: userId },
       { roles },
       { new: true, runValidators: true }
-    ).select("-password");
-    if (!user) throw new AppError(401, "Authentication is no longer valid");
-    return toProfile(user);
+    );
+    if (!profile) throw new AppError(404, "Profile not found");
+    return this.getProfile(userId);
   },
 
   async updatePhoto(userId: string, profilePhoto: string): Promise<ProfileData> {
-    const user = await User.findByIdAndUpdate(
-      userId,
+    const profile = await Profile.findOneAndUpdate(
+      { user: userId },
       { profilePhoto },
       { new: true, runValidators: true }
-    ).select("-password");
-    if (!user) throw new AppError(401, "Authentication is no longer valid");
-    return toProfile(user);
+    );
+    if (!profile) throw new AppError(404, "Profile not found");
+    return this.getProfile(userId);
   },
 };
