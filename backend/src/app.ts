@@ -59,6 +59,22 @@ app.get("/api-docs.json", (_req, res) => {
 
 app.use("/api", apiRoutes);
 
+if (process.env.NODE_ENV === "production") {
+  const frontendDistPath = path.resolve(__dirname, "../../frontend/dist");
+  app.use(express.static(frontendDistPath));
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api")) {
+      return next();
+    }
+
+    res.sendFile(path.join(frontendDistPath, "index.html"), (error) => {
+      if (error) {
+        next(error);
+      }
+    });
+  });
+}
+
 app.get("/", (_req, res: Response) => {
   res.send("Welcome to Social Media Platform API");
 });

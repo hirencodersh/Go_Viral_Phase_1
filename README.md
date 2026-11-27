@@ -100,6 +100,34 @@ npm run lint
 npm run build
 ```
 
+## Deploy to Render
+
+The root `render.yaml` deploys the frontend and API as one service so the
+cookie-based login stays on one site. It also mounts a 1 GB persistent disk for
+uploaded media. The web service and disk are paid Render resources; review the
+current price in Render before confirming the Blueprint.
+
+1. Rotate the MongoDB Atlas database user's password because the old URI was
+   exposed. Create a least-privilege database user for this app.
+2. In Atlas Network Access, allow connections from Render. Render's outbound
+   IPs can change, so use a static outbound IP feature if available; otherwise
+   allowing `0.0.0.0/0` is necessary and makes a strong, rotated database
+   password especially important.
+3. Push this repository, including `render.yaml`, to the GitHub branch you want
+   to deploy.
+4. In the Render Dashboard, create a Blueprint from that repository and select
+   the root `render.yaml`. Enter the **new** Atlas URI as the `MONGO_URI`
+   secret when prompted; never put it in a committed file. Render generates
+   `JWT_SECRET` automatically.
+5. If Render assigns a different service hostname, update both `CLIENT_URL`
+   and `PUBLIC_API_URL` to that exact `https://` URL, then redeploy.
+
+After deployment, the app URL is
+`https://social-media-platform.onrender.com` if that service name is
+available. Render may require a different unique service name; use the URL
+shown in its Dashboard and set both URL variables to match. The API health
+check is at `/api/health`, and Swagger UI is at `/api-docs`.
+
 For production, provide `NODE_ENV=production`, `MONGO_URI`, a generated
 `JWT_SECRET` of at least 32 characters, and the exact `CLIENT_URL`. Keep the
 frontend/API on the same site for the default `SameSite=Lax` cookie policy.

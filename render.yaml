@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: social-media-platform
+    runtime: node
+    plan: 0.5c-512mb
+    region: singapore
+    buildCommand: npm ci --prefix backend && npm ci --prefix frontend && npm run build --prefix backend && npm run build --prefix frontend
+    startCommand: npm start --prefix backend
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CLIENT_URL
+        value: https://social-media-platform.onrender.com
+      - key: PUBLIC_API_URL
+        value: https://social-media-platform.onrender.com
+      - key: UPLOAD_DIR
+        value: /var/data/uploads
+    disk:
+      name: uploaded-media
+      mountPath: /var/data
+      sizeGB: 1
