@@ -145,11 +145,12 @@ uses the Vite proxy to reach `http://localhost:5000`.
 For the recommended single-origin Render deployment, use the root
 [`render.yaml`](../render.yaml) Blueprint. It builds the frontend and backend
 and serves the frontend from the API service, preserving the cookie-based
-login. The Blueprint configures a persistent media disk and a paid web-service
-plan; review Render's current charges before deploying. Rotate any exposed
-Atlas password, set the new URI as the Render `MONGO_URI` secret, and keep the
-exact public app URL in both `CLIENT_URL` and `PUBLIC_API_URL`. See the root
-README for deployment and Atlas network-access steps.
+login. The Blueprint uses Render's free plan; account and post metadata live in
+MongoDB Atlas, while uploaded files are temporary and can disappear after
+restarts or redeploys. Rotate any exposed Atlas password, set the new URI as
+the Render `MONGO_URI` secret, and keep the exact public app URL in both
+`CLIENT_URL` and `PUBLIC_API_URL`. See the root README for deployment and Atlas
+network-access steps.
 
 For production, configure environment variables in the backend hosting
 provider (do not commit a production `.env` file):

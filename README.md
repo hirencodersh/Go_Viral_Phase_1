@@ -103,9 +103,11 @@ npm run build
 ## Deploy to Render
 
 The root `render.yaml` deploys the frontend and API as one service so the
-cookie-based login stays on one site. It also mounts a 1 GB persistent disk for
-uploaded media. The web service and disk are paid Render resources; review the
-current price in Render before confirming the Blueprint.
+cookie-based login stays on one site. It uses Render's free web-service plan
+and can connect to a free MongoDB Atlas cluster. Account and post metadata
+persist in Atlas, but uploaded files use Render's temporary filesystem and may
+disappear after a restart or redeploy. Use Cloudinary or paid persistent
+storage if uploaded media must be retained.
 
 1. Rotate the MongoDB Atlas database user's password because the old URI was
    exposed. Create a least-privilege database user for this app.
@@ -115,7 +117,7 @@ current price in Render before confirming the Blueprint.
    password especially important.
 3. Push this repository, including `render.yaml`, to the GitHub branch you want
    to deploy.
-4. In the Render Dashboard, create a Blueprint from that repository and select
+4. In the Render Dashboard, create a Blueprint from this repository and select
    the root `render.yaml`. Enter the **new** Atlas URI as the `MONGO_URI`
    secret when prompted; never put it in a committed file. Render generates
    `JWT_SECRET` automatically.
